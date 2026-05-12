@@ -38,8 +38,8 @@ public class SettingActivity extends AppCompatActivity {
     private static final String TAG = "SettingActivity";
 
     // 延迟时间常量
-    private static final int RESTART_DELAY_OPEN = 3000;
-    private static final int RESTART_DELAY_CLOSE = 1000;
+    private static final int RESTART_DELAY_OPEN = 2000;  // 开启时延迟2秒
+    private static final int RESTART_DELAY_CLOSE = 1500; // 关闭时延迟1.5秒
     private static final int HTTP_TIMEOUT = 8000;
 
     // 动态注册锁屏等广播
@@ -537,7 +537,7 @@ public class SettingActivity extends AppCompatActivity {
      * 显示开启屏幕常亮对话框
      */
     private void showEnableAlwaysOnDialog() {
-        String message = "开启或关闭此功能将会在 3 秒后重启软件！\n" +
+        String message = "开启或关闭此功能将会在 2 秒后重启软件！\n" +
                         "开启之后便会自动调低软件窗口亮度并进入全屏模式（退出即可恢复！）\n" +
                         "重启后请不要关闭软件，保持 Log 日志面板即可否则无效！\n" +
                         "此功能仅适用于真机独立挂 V 免签监控的";
@@ -546,14 +546,21 @@ public class SettingActivity extends AppCompatActivity {
             .setMessage(message)
             .setCancelable(false)
             .setPositiveButton("我已知晓", (dia, which) -> {
+                // 先保存设置
                 SharedPreferences.Editor editor = getSharedPreferences("state_switch", MODE_PRIVATE).edit();
                 editor.putString("state_switch", "no");
-                editor.apply(); // 使用 apply() 替代 commit()
+                editor.apply(); // 使用 apply() 异步保存
+                
                 state_switch.setHint("开启");
-                Toast.makeText(this, "屏幕永亮开启成功，3S 后重启...", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "屏幕永亮开启成功，2S 后重启...", Toast.LENGTH_SHORT).show();
+
+                // 延迟重启
                 restartApp(RESTART_DELAY_OPEN);
             })
-            .setNegativeButton("暂不开启", (dia, which) -> state_switch.setChecked(false))
+                .setNegativeButton("暂不开启", (dia, which) -> {
+                    // 用户取消，恢复开关状态
+                    state_switch.setChecked(false);
+                })
             .create()
             .show();
     }
@@ -562,24 +569,44 @@ public class SettingActivity extends AppCompatActivity {
      * 关闭屏幕常亮
      */
     private void disableAlwaysOn() {
+        // 先保存设置
         SharedPreferences.Editor editor = getSharedPreferences("state_switch", MODE_PRIVATE).edit();
         editor.putString("state_switch", "off");
-        editor.apply();
+        editor.apply(); // 使用 apply() 异步保存
         state_switch.setHint("关闭");
-        Toast.makeText(this, "屏幕永亮已关闭，1S 后重启...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "屏幕永亮已关闭，1.5S 后重启...", Toast.LENGTH_SHORT).show();
+        // 延迟重启
         restartApp(RESTART_DELAY_CLOSE);
     }
 
     /**
      * 重启应用
+     * 使用 PendingIntent 方式重启，更加优雅
      * @param delayMillis 延迟时间 (毫秒)
      */
     private void restartApp(int delayMillis) {
         mainHandler.postDelayed(() -> {
-            Intent intent = new Intent(SettingActivity.this, MainActivity.class);
-            startActivity(intent);
-            finish();
-            System.exit(0);
+            try {
+                // 获取启动 Intent
+                Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                if (intent != null) {
+                    // 添加标志位，确保重新启动
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    // 启动主 Activity
+                    startActivity(intent);
+                    // 结束当前 Activity
+                    finish();
+                    // 退出进程（可选，根据需求决定是否保留）
+                    android.os.Process.killProcess(android.os.Process.myPid());
+                } else {
+                    Log.e(TAG, "无法获取启动 Intent");
+                    Toast.makeText(this, "重启失败，请手动重启应用", Toast.LENGTH_LONG).show();
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "重启应用失败", e);
+                Toast.makeText(this, "重启失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
         }, delayMillis);
     }
 

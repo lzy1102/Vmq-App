@@ -59,16 +59,20 @@ android {
 }
 
 dependencies {
-    // 本地 JAR
+    // NativeJar
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-
     // AndroidX
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-
     // Material UI
     implementation 'com.google.android.material:material:1.9.0'
-    
-    // OkHttp 网络请求
+    // OkHttp
     implementation 'com.squareup.okhttp3:okhttp:4.9.2'
+    // jvm test
+    testImplementation 'junit:junit:4.13.2'
+    // androidTest
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation 'androidx.test:runner:1.5.2'
+    androidTestImplementation 'androidx.test:rules:1.5.0'
 }

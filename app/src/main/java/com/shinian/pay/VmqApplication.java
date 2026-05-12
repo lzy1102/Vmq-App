@@ -64,7 +64,7 @@ public class VmqApplication extends Application {
             // 1. 核心服务通知渠道
             NotificationChannel coreServiceChannel = new NotificationChannel(
                     "vmq_core_service",
-                    "V 免签监控端_Pro 核心服务",
+                    "V免签监控端_Pro 核心服务",
                     NotificationManager.IMPORTANCE_DEFAULT
             );
             coreServiceChannel.setDescription("用于显示核心服务运行状态");

@@ -195,50 +195,38 @@ public class PayNotificationListenerService extends NotificationListenerService 
     }
     
     /**
-     * 处理微信收款通知
+     * 从文本内容中提取金额数字
+     * @param content 包含金额的文本内容
+     * @return 提取到的金额字符串，如果未找到则返回 null
      */
-    private void handleWechatNotification(String title, String content) {
-        if (TextUtils.isEmpty(title) && TextUtils.isEmpty(content)) {
-            return;
-        }
-        
-        // 检查是否为支付相关标题
-        boolean isPayTitle = false;
-        for (String payTitle : WECHAT_PAY_TITLES) {
-            if (payTitle.equals(title)) {
-                isPayTitle = true;
-                break;
+    public static String getMoney(String content) {
+        // 空值检查
+        if (content == null || content.isEmpty()) return null;
+        int shoukuanIndex = content.indexOf("收款");
+        if (shoukuanIndex < 0) return null;
+
+        String afterShoukuan = content.substring(shoukuanIndex);
+        List<String> validAmounts = new ArrayList<>();
+        // 创建正则表达式模式
+        java.util.regex.Matcher matcher = MONEY_PATTERN.matcher(afterShoukuan);
+
+        while (matcher.find()) {
+            String matched = matcher.group();
+            if (isValidNumber(matched)) {
+                try {
+                    double amount = Double.parseDouble(matched);
+                    // 金额范围
+                    if (amount >= 0.01 && amount <= 999999.99) {
+                        validAmounts.add(matched);
+                    }
+                } catch (NumberFormatException e) {
+                    Log.w(TAG, "getMoney: 匹配到无效金额：" + matched);
+                }
             }
         }
-        
-        if (!isPayTitle) {
-            return;
-        }
-        
-        // 只处理收款消息，忽略支付成功消息
-        if (!content.contains("收款") || content.contains("已支付")) {
-            return;
-        }
-        
-        // 尝试获取金额（重试一次避免掉单）
-        String money = getMoney(content);
-        if (money == null || money.isEmpty()) {
-            money = getMoney(content);
-        }
-        
-        if (money != null && !money.isEmpty()) {
-            try {
-                double amount = Double.parseDouble(money);
-                Toast.makeText(this, "匹配成功：微信到账" + money + "元", Toast.LENGTH_LONG).show();
-                Log.d(TAG, "onAccessibilityEvent: 匹配成功：微信到账 " + money + "元");
-                appPush(1, amount);
-            } catch (NumberFormatException e) {
-                Log.e(TAG, "解析微信金额失败：" + money, e);
-                showMoneyParseErrorToast("微信");
-            }
-        } else {
-            showMoneyParseErrorToast("微信");
-        }
+
+        if (!validAmounts.isEmpty()) return validAmounts.get(0);
+        return null;
     }
     
     /**
@@ -540,51 +528,17 @@ public class PayNotificationListenerService extends NotificationListenerService 
             }
         }, 1000); // 延迟 1 秒重试
     }
-    /**
-     * 从文本内容中提取金额数字（使用预编译的正则表达式）
-     * 例如："收款 10.50 元" → "10.50"
-     * 
-     * @param content 包含金额的文本内容
-     * @return 提取到的金额字符串，如果未找到则返回 null
-     */
-    public static String getMoney(String content) {
-        // 空值检查
-        if (content == null || content.isEmpty()) {
-            return null;
-        }
-        
-        // 使用预编译的正则表达式匹配所有数字和小数点组合
-        java.util.regex.Matcher matcher = MONEY_PATTERN.matcher(content);
-        
-        // 收集所有匹配到的数字
-        List<String> numbers = new ArrayList<>();
-        while (matcher.find()) {
-            String matched = matcher.group();
-            // 验证是否为合法的数字格式（避免 "1.2.3" 这样的情况）
-            if (isValidNumber(matched)) {
-                numbers.add(matched);
-            }
-        }
-        
-        // 如果没有找到任何合法数字，返回 null
-        if (numbers.isEmpty()) {
-            return null;
-        }
-        
-        // 返回最后一个匹配到的数字（通常是金额）
-        return numbers.get(numbers.size() - 1);
-    }
-    
+
     /**
      * 验证字符串是否为合法的数字格式
      * @param str 待验证的字符串
-     * @return true 表示合法，false 表示不合法
+     * @return true ，false
      */
     private static boolean isValidNumber(String str) {
         if (str == null || str.isEmpty()) {
             return false;
         }
-        
+
         // 不能以小数点开头或结尾，且只能包含一个小数点
         int dotCount = 0;
         for (int i = 0; i < str.length(); i++) {
@@ -600,6 +554,50 @@ public class PayNotificationListenerService extends NotificationListenerService 
             }
         }
         return true;
+    }
+    
+    /**
+     * 处理微信收款通知
+     */
+    private void handleWechatNotification(String title, String content) {
+        // null
+        if (TextUtils.isEmpty(title) && TextUtils.isEmpty(content)) return;
+
+
+        // 检查是否为支付相关标题
+        boolean isPayTitle = false;
+        for (String payTitle : WECHAT_PAY_TITLES) {
+            if (payTitle.equals(title)) {
+                isPayTitle = true;
+                break;
+            }
+        }
+        // title 不匹配
+        if (!isPayTitle) return;
+
+        // 忽略支付消息
+        if (!content.contains("收款") || content.contains("已支付")) return;
+
+
+        // 尝试获取金额（重试一次避免掉单）
+        String money = getMoney(content);
+        if (money == null || money.isEmpty()) {
+            money = getMoney(content);
+        }
+
+        if (money != null && !money.isEmpty()) {
+            try {
+                double amount = Double.parseDouble(money);
+                Toast.makeText(this, "匹配成功：微信到账" + money + "元", Toast.LENGTH_LONG).show();
+                Log.d(TAG, "onAccessibilityEvent: 匹配成功：微信到账 " + money + "元");
+                appPush(1, amount);
+            } catch (NumberFormatException e) {
+                Log.e(TAG, "解析微信金额失败：" + money, e);
+                showMoneyParseErrorToast("微信");
+            }
+        } else {
+            showMoneyParseErrorToast("微信");
+        }
     }
 
     // 监听服务连接成功时回调初始化心跳线程

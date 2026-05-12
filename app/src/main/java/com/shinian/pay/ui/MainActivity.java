@@ -175,16 +175,16 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
         //屏幕是否常亮
         if (state_swich.equals("no")) {
             Toast.makeText(getApplication(), "当前处于屏幕常亮模式" + "\n当前界面亮度值：" + ld, Toast.LENGTH_LONG).show();
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);//开启常亮
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);//全屏
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER);
+            // 添加屏幕常亮
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            // 添加壁纸
+            //getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER);
             initAppHeart();//电量线程
             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-
                 @Override
                 public void run() {
                     WindowManager.LayoutParams lp = getWindow().getAttributes();
-                    lp.screenBrightness = Float.valueOf(ld) * (1f / 255f);//亮度值0~255
+                    lp.screenBrightness = (float) ld * (1f / 255f);//亮度值0~255
                     getWindow().setAttributes(lp);
                 }
             }, 3000);
