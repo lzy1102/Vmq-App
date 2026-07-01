@@ -3,8 +3,6 @@ package com.shinian.pay.service;
 import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.icu.text.SimpleDateFormat;
 import android.os.*;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -13,21 +11,16 @@ import android.util.Log;
 import android.widget.Toast;
 import androidx.core.app.NotificationCompat;
 import com.shinian.pay.ui.MainActivity;
+import com.shinian.pay.util.ConfigManager;
+import com.shinian.pay.util.HttpUtil;
+import com.shinian.pay.util.MD5Util;
 import okhttp3.*;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
+import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 
 
 public class PayNotificationListenerService extends NotificationListenerService {
@@ -37,31 +30,12 @@ public class PayNotificationListenerService extends NotificationListenerService 
     private String key = "";
     private Thread newThread = null;
     private PowerManager.WakeLock mWakeLock = null;
-    private OkHttpClient okHttpClient; // 复用 OkHttpClient 实例
-    private Handler mainHandler; // 复用主线程 Handler
+    private OkHttpClient okHttpClient;
+    private Handler mainHandler;
+    private ConfigManager configManager;
 
-    // MD5 加密
     public static String md5(String string) {
-        if (TextUtils.isEmpty(string)) {
-            return "";
-        }
-        MessageDigest md5 = null;
-        try {
-            md5 = MessageDigest.getInstance("MD5");
-            byte[] bytes = md5.digest(string.getBytes());
-            String result = "";
-            for (byte b : bytes) {
-                String temp = Integer.toHexString(b & 0xff);
-                if (temp.length() == 1) {
-                    temp = "0" + temp;
-                }
-                result += temp;
-            }
-            return result;
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-        return "";
+        return MD5Util.md5(string);
     }
 
     // 释放设备电源锁
@@ -94,14 +68,14 @@ public class PayNotificationListenerService extends NotificationListenerService 
         newThread = new Thread(() -> {
             Log.d(TAG, "心跳线程启动！");
             while (true) {
-                SharedPreferences read = getSharedPreferences("shinian", MODE_PRIVATE);
-                host = read.getString("host", "");
-                key = read.getString("key", "");
+                host = configManager.getHost();
+                key = configManager.getKey();
 
                 String t = String.valueOf(new Date().getTime());
                 String sign = md5(t + key);
+                String url = HttpUtil.buildHeartbeatUrl(host, t, sign);
                 Request request = new Request.Builder()
-                        .url("http://" + host + "/appHeart?t=" + t + "&sign=" + sign)
+                        .url(url)
                         .method("GET", null)
                         .build();
 
@@ -163,10 +137,8 @@ public class PayNotificationListenerService extends NotificationListenerService 
      */
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
-        // 获取配置（只在需要时读取）
-        SharedPreferences read = getSharedPreferences("shinian", MODE_PRIVATE);
-        host = read.getString("host", "");
-        key = read.getString("key", "");
+        host = configManager.getHost();
+        key = configManager.getKey();
         
         // 获取通知对象和包名（只获取一次）
         Notification notification = sbn.getNotification();
@@ -340,19 +312,16 @@ public class PayNotificationListenerService extends NotificationListenerService 
      * @param price 收款金额
      */
     public void appPush(final int type, final double price) {
-        SharedPreferences read = getSharedPreferences("shinian", MODE_PRIVATE);
-        host = read.getString("host", "");
-        key = read.getString("key", "");
+        host = configManager.getHost();
+        key = configManager.getKey();
     
-        // 格式化价格，避免精度问题（例如：0.1 变成 0.10000000000000000555）
         String priceStr = String.format("%.2f", price);
             
         Log.d(TAG, "appPush: 开始 - 类型:" + type + ", 金额:" + priceStr);
     
-        // 构建请求 URL
         String t = String.valueOf(new Date().getTime());
         String sign = md5(type + priceStr + t + key);
-        String url = buildPushUrl(host, type, priceStr, t, sign);
+        String url = HttpUtil.buildPushUrl(host, type, priceStr, t, sign);
             
         Log.d(TAG, "appPush: URL:" + url);
     
@@ -444,25 +413,6 @@ public class PayNotificationListenerService extends NotificationListenerService 
         }
     }
 
-    /**
-     * 构建推送 URL（消除重复代码）
-     */
-    private String buildPushUrl(String host, int type, String priceStr, String t, String sign) {
-        return "http://" +
-                host +
-                "/appPush?t=" +
-                t +
-                "&type=" +
-                type +
-                "&price=" +
-                priceStr +
-                "&sign=" +
-                sign;
-    }
-        
-    /**
-     * 记录推送结果日志（消除重复代码）
-     */
     private void logPushResult(int type, String priceStr, String msg, String data, boolean isRetry) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             String prefix = isRetry ? "自动补回调：" : "";
@@ -486,10 +436,9 @@ public class PayNotificationListenerService extends NotificationListenerService 
                 try {
                     String t = String.valueOf(new Date().getTime());
                     String sign = md5(type + priceStr + t + key);
-                    String url = buildPushUrl(host, type, priceStr, t, sign);
+                    String url = HttpUtil.buildPushUrl(host, type, priceStr, t, sign);
                         
-                    // 同步请求（在子线程中执行）
-                    String data = getHtml(url);
+                    String data = HttpUtil.getSync(url);
                         
                     // 解析响应
                     JSONObject jsonObject = new JSONObject(data);
@@ -603,12 +552,13 @@ public class PayNotificationListenerService extends NotificationListenerService 
     // 监听服务连接成功时回调初始化心跳线程
     @Override
     public void onListenerConnected() {
-        // 初始化主线程 Handler（只初始化一次）
         if (mainHandler == null) {
             mainHandler = new Handler(Looper.getMainLooper());
         }
+        if (configManager == null) {
+            configManager = ConfigManager.getInstance(this);
+        }
 
-        // 初始化心跳线程
         initAppHeart();
         //延迟发送监听日志
         mainHandler.postDelayed(new Runnable() {
@@ -624,35 +574,8 @@ public class PayNotificationListenerService extends NotificationListenerService 
 
     // 监听日志
     private void sendMonitorLogs(String msgStr) {
-        SharedPreferences read = getSharedPreferences("items", MODE_PRIVATE);
-        String logsStr = read.getString("logsStr", "");
-            
-        // 计算当前日志行数，只保留最近 20 条
-        int lineCount = 0;
-        int lastIndex = -1;
-        for (int i = 0; i < logsStr.length(); i++) {
-            if (logsStr.charAt(i) == '\n') {
-                lineCount++;
-                if (lineCount >= 20) {
-                    lastIndex = i;
-                    break;
-                }
-            }
-        }
-            
-        // 如果超过 20 行，截取最后一部分
-        if (lastIndex >= 0 && lastIndex < logsStr.length() - 1) {
-            logsStr = logsStr.substring(lastIndex + 1);
-        }
-            
-        // 追加新日志
-        logsStr = msgStr + "\n" + logsStr;
-            
-        SharedPreferences.Editor editor = getSharedPreferences("items", MODE_PRIVATE).edit();
-        editor.putString("logsStr", logsStr);
-        editor.commit();
+        String logsStr = configManager.appendLog(msgStr, 20);
     
-        //创建消息对象并发送
         Message msg = new Message();
         msg.what = 0;
         Bundle bundle = new Bundle();
@@ -660,49 +583,5 @@ public class PayNotificationListenerService extends NotificationListenerService 
         msg.setData(bundle);
         MainActivity.monitorLogHandler.sendMessage(msg);
     }
-
-    // 获取 HTML（确保资源正确关闭）
-    public String getHtml(String path) throws Exception {
-        HttpURLConnection conn = null;
-        InputStream inStream = null;
-        try {
-            URL url = new URL(path);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(8 * 1000);
-                
-            //通过输入流获取 html 数据
-            inStream = conn.getInputStream();
-            //获取 html 的二进制数组
-            byte[] data = readInputStream(inStream);
-            //获取指定字符集解码指定的字节数组构造一个新的字符串
-            return new String(data, StandardCharsets.UTF_8);
-        } finally {
-            // 关闭输入流
-            if (inStream != null) {
-                try {
-                    inStream.close();
-                } catch (IOException e) {
-                    Log.e(TAG, "关闭输入流失败", e);
-                }
-            }
-            // 断开连接
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
-    }
-
-    // 读取输入流 获取 HTML 二进制数组（调用后需关闭输入流）
-    public byte[] readInputStream(InputStream inStream) throws Exception {
-        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int len = 0;
-        while ((len = inStream.read(buffer)) != -1) {
-            outStream.write(buffer, 0, len);
-        }
-        return outStream.toByteArray();
-    }
-
 
 }

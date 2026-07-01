@@ -57,42 +57,6 @@
 			<TextView
 				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
-				android:text="版本"
-				android:textAppearance="?android:attr/textAppearanceSmall"
-				android:layout_margin="16dp"
-				android:textColor="#FF03A9F5"/>
-
-			<LinearLayout
-				android:orientation="vertical"
-				android:layout_width="match_parent"
-				android:layout_height="60dp"
-				android:gravity="center_vertical"
-				android:background="@drawable/ripple"
-				android:id="@+id/appupdate"
-				android:onClick="ver_sion"
-				android:paddingStart="16dp"
-				android:paddingEnd="16dp">
-
-				<TextView
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:text="检测更新"
-					android:textAppearance="?android:attr/textAppearanceSmall"
-					android:textColor="#FF000000"/>
-
-				<TextView
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:text="当前软件版本"
-					android:textAppearance="?android:attr/textAppearanceSmall"
-					android:id="@+id/version"
-					android:layout_marginTop="4dp"/>
-
-			</LinearLayout>
-
-			<TextView
-				android:layout_width="wrap_content"
-				android:layout_height="wrap_content"
 				android:text="反馈"
 				android:textAppearance="?android:attr/textAppearanceSmall"
 				android:layout_margin="16dp"

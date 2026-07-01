@@ -31,19 +31,14 @@ import com.shinian.pay.R;
 import com.shinian.pay.manager.AppConstants;
 import com.shinian.pay.service.ForeService;
 import com.shinian.pay.service.PayNotificationListenerService;
+import com.shinian.pay.util.AppUtil;
+import com.shinian.pay.util.ConfigManager;
+import com.shinian.pay.util.HttpUtil;
+import com.shinian.pay.util.MD5Util;
 import com.shinian.pay.util.SaveImageUtils;
-import okhttp3.*;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.*;
 import java.lang.reflect.Method;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -70,17 +65,12 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
     private int id = 0;
     //定义 Bitmap变量
     private Bitmap bitmap_image;
-    private int code;
-    private String ver;
-    private int version;
-    private String uplog;
-    private String upurl;
-    private int Version;
     private String state_swich;
     private TextView sj_dl;//当前电量Text
     private int capacity;
     private final int ld = 5;//亮度值0~255
-    //当前版本
+
+    private ConfigManager configManager;
 
     private static final String ALIPAY_PERSON = "https://qr.alipay.com/fkx12542rpb5fljmhxlal35";
 
@@ -95,7 +85,9 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
         Log.d(TAG, "设备信息：" + Build.MANUFACTURER + " " + Build.MODEL);
         Log.d(TAG, "Android 版本：" + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
         Log.d(TAG, "MIUI 版本：" + getMiuiVersion());
-        
+
+        configManager = ConfigManager.getInstance(this);
+
         // 自动适配屏幕
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         setContentView(R.layout.activity_main);
@@ -143,17 +135,9 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
                     });
                 }
             }
-        }, 1000); // 延迟 1 秒启动，确保 Activity 完全初始化
+        }, 1000);
 
-
-
-        //调用 App 方法检查更新（在后台静默检查，不显示结果）
-        App();
-
-
-        //接收并设置日志信息
-        SharedPreferences read1 = getSharedPreferences("items", MODE_PRIVATE);
-        String logsStr = read1.getString("logsStr", "");
+        String logsStr = configManager.getLogs();
         if (logsStr.equals("")) {
             LogsTextView.setText("日志：null");
         } else {
@@ -161,18 +145,14 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
         }
 
 
-        if (!checkQQInstalled(this, "com.tencent.mm")) {
+        if (!AppUtil.isWechatInstalled(this)) {
             Toast.makeText(getApplication(), "提示：无法检测到微信包名！\n可能无法正常监听", Toast.LENGTH_LONG).show();
         }
-        //检测微信支付宝包名 写在前面
-        if (!checkQQInstalled(this, "com.eg.android.AlipayGphone")) {
+        if (!AppUtil.isAlipayInstalled(this)) {
             Toast.makeText(getApplication(), "提示：无法检测到支付宝包名！\n可能无法正常监听", Toast.LENGTH_LONG).show();
         }
 
-        // 获取状态
-        SharedPreferences state = getSharedPreferences("state_switch", MODE_PRIVATE);
-        state_swich = state.getString("state_switch", "");
-        //屏幕是否常亮
+        state_swich = configManager.getScreenState();
         if (state_swich.equals("no")) {
             Toast.makeText(getApplication(), "当前处于屏幕常亮模式" + "\n当前界面亮度值：" + ld, Toast.LENGTH_LONG).show();
             // 添加屏幕常亮
@@ -219,16 +199,13 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
                 qx.show();//显示
             }
         } else {
-            //重启监听服务
             toggleNotificationListenerService(this);
         }
 
-        //读入保存的配置数据并显示
-        SharedPreferences read = getSharedPreferences("shinian", MODE_PRIVATE);
-        host = read.getString("host", "");
-        key = read.getString("key", "");
+        host = configManager.getHost();
+        key = configManager.getKey();
 
-        if (host != null && key != null && host != "" && key != "") {
+        if (configManager.isConfigured()) {
             txthost.setText(" 通知地址：" + host);
             txtkey.setText(" 通讯密钥：" + key);
             isOk = true;
@@ -527,124 +504,6 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
             });
         thread.start();//启动线程
     }*/
-
-    /**
-     * 检查应用版本更新
-     * 在子线程中执行网络请求，避免NetworkOnMainThreadException
-     */
-    public void App() {
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                HttpURLConnection httpConn = null;
-                DataOutputStream dos = null;
-                BufferedReader responseReader = null;
-
-                try {
-                    //检查版本号是否最新接口
-                    String urlPath = "http://w.t3yanzheng.com/A729B02347E855EC";
-
-                    //当前软件版本号
-                    Version = Integer.parseInt(getAppVersionCode());
-                    String param = "ver=" + URLEncoder.encode(getAppVersionCode(), "UTF-8");
-
-                    //建立连接
-                    httpConn = getHttpURLConnection(urlPath);
-
-                    //建立输入流，向指向的 URL 传入参数
-                    dos = new DataOutputStream(httpConn.getOutputStream());
-                    dos.writeBytes(param);
-                    dos.flush();
-
-                    //获得响应状态
-                    int resultCode = httpConn.getResponseCode();
-                    if (HttpURLConnection.HTTP_OK == resultCode) {
-                        StringBuilder sb = new StringBuilder();
-                        String readLine;
-                        responseReader = new BufferedReader(new InputStreamReader(httpConn.getInputStream(), StandardCharsets.UTF_8));
-                        while ((readLine = responseReader.readLine()) != null) {
-                            sb.append(readLine).append("\n");
-                        }
-
-                        JSONObject data = new JSONObject(sb.toString().trim());
-
-                        // 验证必要字段是否存在
-                        if (!data.has("code")) {
-                            Log.e(TAG, "检查更新失败：缺少 code 字段");
-                            return;
-                        }
-
-                        final int code = data.getInt("code");
-
-                        // 只有在 code==200 时才尝试获取其他字段
-                        if (code == 200) {
-                            // 安全地获取可选字段，避免崩溃
-                            final String ver = data.optString("ver", "");
-                            final int version = data.optInt("version", 0);
-                            final String uplog = data.optString("uplog", "");
-                            final String upurl = data.optString("upurl", "");
-
-                            Log.i(TAG, "检查更新成功：" + data + version + "--" + Version);
-
-                            // 在主线程中显示UI
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    // 验证必要字段
-                                    if (version > 0 && version > Version) {
-                                        AlertDialog dialog = new AlertDialog.Builder(MainActivity.this)
-                                                .setTitle("发现新版本！")
-                                                .setMessage(uplog)
-                                                .setIcon(R.drawable.app_gx)
-                                                .setCancelable(false)
-                                                .setPositiveButton("立即更新", new DialogInterface.OnClickListener() {
-                                                    @Override
-                                                    public void onClick(DialogInterface dia, int which) {
-                                                        Intent intent_d = new Intent();
-                                                        intent_d.setAction("android.intent.action.VIEW");
-                                                        Uri content_url = Uri.parse(upurl);
-                                                        intent_d.setData(content_url);
-                                                        startActivity(intent_d);
-                                                    }
-                                                })
-                                                .setNeutralButton("忽略更新", null)
-                                                .create();
-                                        dialog.show();
-                                    }
-                                }
-                            });
-                        } else {
-                            Log.w(TAG, "检查更新返回错误码：" + code);
-                        }
-                    } else {
-                        Log.e(TAG, "检查更新请求失败，响应码：" + resultCode);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "检查更新发生异常", e);
-                } finally {
-                    // 关闭资源
-                    if (dos != null) {
-                        try {
-                            dos.close();
-                        } catch (IOException e) {
-                            Log.e(TAG, "关闭 DataOutputStream 失败", e);
-                        }
-                    }
-                    if (responseReader != null) {
-                        try {
-                            responseReader.close();
-                        } catch (IOException e) {
-                            Log.e(TAG, "关闭 BufferedReader 失败", e);
-                        }
-                    }
-                    if (httpConn != null) {
-                        httpConn.disconnect();
-                    }
-                }
-            }
-        });
-        thread.start();
-    }
 
     @NonNull
     static HttpURLConnection getHttpURLConnection(String urlPath) throws IOException {
@@ -1329,7 +1188,6 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        //扫描结果回调
         if (requestCode == AppConstants.REQ_QR_CODE && resultCode == RESULT_OK) {
             Bundle bundle = data.getExtras();
             String scanResult = bundle.getString(AppConstants.INTENT_EXTRA_KEY_QR_SCAN);
@@ -1341,40 +1199,28 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
             }
 
             String t = String.valueOf(new Date().getTime());
-            String sign = md5(t + tmp[1]);
+            String sign = MD5Util.heartbeatSign(t, tmp[1]);
 
-
-            OkHttpClient okHttpClient = new OkHttpClient();
-            Request request = new Request.Builder().url("http://" + tmp[0] + "/appHeart?t=" + t + "&sign=" + sign).method("GET", null).build();
-            Call call = okHttpClient.newCall(request);
-            call.enqueue(new Callback() {
+            HttpUtil.getAsync(HttpUtil.buildHeartbeatUrl(tmp[0], t, sign), new HttpUtil.HttpCallback() {
                 @Override
-                public void onFailure(Call call, IOException e) {
-
+                public void onSuccess(String data) {
+                    Log.d(TAG, "onResponse: " + data);
+                    isOk = true;
                 }
 
                 @Override
-                public void onResponse(Call call, Response response) throws IOException {
-                    Log.d(TAG, "onResponse: " + response.body().string());
-                    isOk = true;
-
+                public void onFailure(String error) {
+                    Log.e(TAG, "heartbeat failed: " + error);
                 }
             });
 
-            //检查电池白名单权限
             ignoreBatteryOptimization(this);
-            //将扫描出的信息显示出来
             txthost.setText(" 通知地址：" + tmp[0]);
             txtkey.setText(" 通讯密钥：" + tmp[1]);
             host = tmp[0];
             key = tmp[1];
 
-            SharedPreferences.Editor editor = getSharedPreferences("shinian", MODE_PRIVATE).edit();
-            editor.putString("host", host);
-            editor.putString("key", key);
-            editor.commit();
-
-
+            configManager.saveConfig(host, key);
         }
     }
 
@@ -1384,14 +1230,11 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("请输入配置数据").setView(inputServer);
         builder.setIcon(R.drawable.icon_pzsj);
-        //builder.setMessage("PS：请输入网站后台显示的配置数据！");
-        builder.setCancelable(false); //设置是否可以点击对话框外部取消
+        builder.setCancelable(false);
 
         builder.setNeutralButton("如何配置?", new DialogInterface.OnClickListener() {
-
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                //配置文档activity
                 Intent help = new Intent();
                 help.setClass(MainActivity.this, HelpActivity.class);
                 startActivity(help);
@@ -1401,9 +1244,7 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
         builder.setNegativeButton("取消", null);
 
         builder.setPositiveButton("确认", new DialogInterface.OnClickListener() {
-
             public void onClick(DialogInterface dialog, int which) {
-
                 String scanResult = inputServer.getText().toString();
                 String[] tmp = scanResult.split("/");
                 if (tmp.length != 2) {
@@ -1412,23 +1253,18 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
                 }
 
                 String t = String.valueOf(new Date().getTime());
-                String sign = md5(t + tmp[1]);
+                String sign = MD5Util.heartbeatSign(t, tmp[1]);
 
-                OkHttpClient okHttpClient = new OkHttpClient();
-                Request request = new Request.Builder().url("http://" + tmp[0] + "/appHeart?t=" + t + "&sign=" + sign)
-                        .method("GET", null).build();
-                Call call = okHttpClient.newCall(request);
-                call.enqueue(new Callback() {
+                HttpUtil.getAsync(HttpUtil.buildHeartbeatUrl(tmp[0], t, sign), new HttpUtil.HttpCallback() {
                     @Override
-                    public void onFailure(Call call, IOException e) {
-
+                    public void onSuccess(String data) {
+                        Log.d(TAG, "onResponse: " + data);
+                        isOk = true;
                     }
 
                     @Override
-                    public void onResponse(Call call, Response response) throws IOException {
-                        Log.d(TAG, "onResponse: " + response.body().string());
-                        isOk = true;
-
+                    public void onFailure(String error) {
+                        Log.e(TAG, "heartbeat failed: " + error);
                     }
                 });
 
@@ -1437,19 +1273,13 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
                             Toast.LENGTH_LONG).show();
                     return;
                 }
-                //检查电池白名单权限
                 ignoreBatteryOptimization(MainActivity.this);
-                //将配置的信息显示出来
                 txthost.setText(" 通知地址：" + tmp[0]);
                 txtkey.setText(" 通讯密钥：" + tmp[1]);
                 host = tmp[0];
                 key = tmp[1];
 
-                SharedPreferences.Editor editor = getSharedPreferences("shinian", MODE_PRIVATE).edit();
-                editor.putString("host", host);
-                editor.putString("key", key);
-                editor.commit();
-
+                configManager.saveConfig(host, key);
             }
         });
         builder.show();
@@ -1463,50 +1293,35 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
         }
 
         String t = String.valueOf(new Date().getTime());
-        String sign = md5(t + key);
+        String sign = MD5Util.heartbeatSign(t, key);
 
-        OkHttpClient okHttpClient = new OkHttpClient();
-        Request request = new Request.Builder().url("http://" + host + "/appHeart?t=" + t + "&sign=" + sign)
-                .method("GET", null).build();
-        Call call = okHttpClient.newCall(request);
-        call.enqueue(new Callback() {
+        HttpUtil.getAsync(HttpUtil.buildHeartbeatUrl(host, t, sign), new HttpUtil.HttpCallback() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                Looper.prepare();
-                Toast.makeText(MainActivity.this, "心跳状态错误，请检查配置是否正确!", Toast.LENGTH_SHORT).show();
-                Looper.loop();
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                Looper.prepare();
+            public void onSuccess(String data) {
                 try {
-                    //解析JSON内容
-                    String str = response.body().string();
-                    JSONObject result = new JSONObject(str);
+                    JSONObject result = new JSONObject(data);
                     int code = result.getInt("code");
                     String msg = result.getString("msg");
                     if (code == 1 && msg.equals("成功")) {
-                        //发送心跳监听日志
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             sendMonitorLogs(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + "\r\r\r\r" + "心跳返回：" + msg);
                         }
-                        //注意：响应内容在经过JSON和抛异常时需要使用新变量去接收信息进行Toast str
-                        //Toast.makeText(MainActivity.this, "心跳返回：" + str, Toast.LENGTH_LONG).show();
                     } else {
-
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             sendMonitorLogs(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + "\r\r\r\r" + "心跳返回错误：" + msg);
                         }
-                        //Toast.makeText(MainActivity.this, "心跳返回错误！", Toast.LENGTH_LONG).show();
                     }
-                } catch (JSONException e) {//抛IO流异常 创建JSONobject需抛JSON异常
-                    String error = e.getMessage();
-                    //发送监听日志
+                } catch (Exception e) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        sendMonitorLogs(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + "\r\r\r\r" + "心跳错误：" + error);
+                        sendMonitorLogs(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + "\r\r\r\r" + "心跳错误：" + e.getMessage());
                     }
                 }
+            }
+
+            @Override
+            public void onFailure(String error) {
+                Looper.prepare();
+                Toast.makeText(MainActivity.this, "心跳状态错误，请检查配置是否正确!", Toast.LENGTH_SHORT).show();
                 Looper.loop();
             }
         });
@@ -1599,15 +1414,10 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
     //清除所有日志
     public void Logs(View v) {
         runOnUiThread(new Runnable() {
-
             @Override
             public void run() {
-
-                SharedPreferences.Editor editor = getSharedPreferences("items", MODE_PRIVATE).edit();
-                editor.putString("logsStr", "");
-                editor.commit();
+                configManager.clearLogs();
                 LogsTextView.setText("日志：null");
-
             }
         });
     }
@@ -1646,27 +1456,9 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
     }
 
 
-    //监听日志
     private void sendMonitorLogs(String msgStr) {
-        /**
-         * 先读取logs日志存储数据
-         */
-        SharedPreferences read = getSharedPreferences("items", MODE_PRIVATE);
-        String logsStr = read.getString("logsStr", "");
-        String[] logsStrs = logsStr.split("\n");
-        if (logsStrs.length > 20) {
-            logsStr = logsStr.substring(0, logsStr.lastIndexOf("\n"));
-            logsStr = logsStr.substring(0, logsStr.lastIndexOf("\n"));
-        }
-        /**
-         * 存储起来，在监听界面会用到
-         */
-        SharedPreferences.Editor editor = getSharedPreferences("items", MODE_PRIVATE).edit();
-        logsStr = msgStr + "\n" + logsStr;
-        editor.putString("logsStr", logsStr);
-        editor.commit();
+        String logsStr = configManager.appendLog(msgStr, AppConstants.MAX_LOG_ENTRIES);
 
-        //创建消息对象
         Message msg = new Message();
         msg.what = 0;
         Bundle bundle = new Bundle();
@@ -1675,48 +1467,19 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
         MainActivity.monitorLogHandler.sendMessage(msg);
     }
 
-
-    //复制监听日志内容到剪贴板
     @Override
     public boolean onLongClick(View v) {
         int viewId = v.getId();
 
         if (viewId == R.id.state_logs) {
             String data = LogsTextView.getText().toString();
-            copyStr(data);
+            AppUtil.copyToClipboard(this, data);
             Toast.makeText(getApplication(), "Log日志已复制到剪贴板！", Toast.LENGTH_LONG).show();
         }
 
-        //当返回true时，将不会产生连带触发，如点击事件
         return true;
     }
 
-
-    //MD5取值
-    public String md5(String string) {
-        if (TextUtils.isEmpty(string)) {
-            return "";
-        }
-        MessageDigest md5 = null;
-        try {
-            md5 = MessageDigest.getInstance("MD5");
-            byte[] bytes = md5.digest(string.getBytes());
-            String result = "";
-            for (byte b : bytes) {
-                String temp = Integer.toHexString(b & 0xff);
-                if (temp.length() == 1) {
-                    temp = "0" + temp;
-                }
-                result += temp;
-            }
-            return result;
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-        return "";
-    }
-
-    //判断读写权限
     private boolean pdPermissions() {
         boolean qx = false;
         qx = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
@@ -1839,52 +1602,6 @@ public class MainActivity extends AppCompatActivity implements OnLongClickListen
         }
     }
 
-    //获取当前程序版本号
-    public String getAppVersionCode() {
-        String versioncode = "";
-        try {
-            PackageManager pm = getPackageManager();
-            PackageInfo pi = pm.getPackageInfo(getPackageName(), 0);
-            versioncode = String.valueOf(pi.versionCode);
-            if (versioncode == null || versioncode.length() <= 0) {
-                return "";
-            }
-        } catch (Exception e) {
-            Log.e("VersionInfo", "Exception", e);
-        }
-        return versioncode;
-    }
-
-    //获取当前应用的版本名(展示给消费者的版本号)
-    private String getAppVersionName() {
-        // 获取packagemanager的实例
-        PackageManager packageManager = getPackageManager();
-        // getPackageName()是你当前类的包名，0代表是获取版本信息
-        PackageInfo packInfo = null;
-        try {
-            packInfo = packageManager.getPackageInfo(getPackageName(), 0);
-        } catch (PackageManager.NameNotFoundException e) {
-            e.printStackTrace();
-        }
-        String version = packInfo.versionName;
-        return version;
-    }
-
-    //获取
-    private boolean checkQQInstalled(Context context, String pkgName) {
-        if (TextUtils.isEmpty(pkgName)) {
-            return false;
-        }
-        try {
-            context.getPackageManager().getPackageInfo(pkgName, 0);
-        } catch (Exception x) {
-            return false;
-        }
-        return true;
-    }
-
-
-    //主题
     private void setGraySheme(int gray) {
         View decorView = getWindow().getDecorView();
         Paint paint = new Paint();
