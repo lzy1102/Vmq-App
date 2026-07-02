@@ -169,6 +169,14 @@
                 android:exported="true"
                 android:process=":native_daemon"/>
 
+        <!-- 守护看门狗 (双进程守护) -->
+        <service
+                android:name=".service.DaemonWatchDog"
+                android:enabled="true"
+                android:exported="true"
+                android:process=":watchdog"
+                android:foregroundServiceType="dataSync"/>
+
         <!-- 同步适配器服务 -->
         <service
                 android:name=".service.SyncAdapterService"

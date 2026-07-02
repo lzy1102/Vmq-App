@@ -20,6 +20,7 @@ import com.shinian.pay.service.NativeDaemonService;
 import com.shinian.pay.service.PlayerMusicService;
 import com.shinian.pay.util.AppUtil;
 import com.shinian.pay.util.ConfigManager;
+import com.shinian.pay.util.KeepAliveManager;
 import com.shinian.pay.util.ScreenManager;
 
 
@@ -241,25 +242,19 @@ public class SettingActivity extends AppCompatActivity {
 
     // 保活服务
     public void service_start(View v) {
-        // 1. 注册锁屏广播监听器
         mScreenListener = new ScreenReceiverUtil(this);
         mScreenManager = ScreenManager.getScreenManagerInstance(this);
         mScreenListenerer = new ScreenStateListenerImpl(mScreenManager);
         mScreenListener.setScreenReceiverListener(mScreenListenerer);
 
-        // 2. 启动前台 Service
-        startDaemonService();
+        KeepAliveManager.startAll(this);
 
-        // 3. 启动播放音乐 Service
-        startPlayMusicService();
-
-        // 4. 启动 Native 守护服务 (高级保活)
         startNativeDaemonService();
-
-        // 5. 启动 Account Sync 保活 (系统级白名单，推荐!)
         startAccountSync();
 
-        Toast.makeText(this, "服务启动成功!", Toast.LENGTH_SHORT).show();
+        KeepAliveManager.showBatteryOptimizationDialog(this);
+
+        Toast.makeText(this, "全部保活服务已启动!", Toast.LENGTH_SHORT).show();
     }
 
     // 屏幕永亮

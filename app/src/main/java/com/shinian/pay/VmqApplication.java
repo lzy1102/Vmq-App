@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.util.Log;
 import com.shinian.pay.manager.AppConstants;
+import com.shinian.pay.util.KeepAliveManager;
 
 /**
  * 全局 Application 类
@@ -46,6 +47,7 @@ public class VmqApplication extends Application {
 
         // 创建通知渠道（Android 8.0+）
         createNotificationChannels();
+        KeepAliveManager.scheduleWorkManager(this);
     }
 
     /**
