@@ -260,9 +260,18 @@
 					android:text="开发人员及相关信息"
 					android:layout_marginTop="4dp"/>
 
-			</LinearLayout>
-
 		</LinearLayout>
+
+		<TextView
+			android:id="@+id/version"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center"
+			android:textAppearance="?android:attr/textAppearanceSmall"
+			android:textColor="#FF888888"
+			android:layout_margin="16dp"/>
+
+	</LinearLayout>
 
 	</ScrollView>
 
