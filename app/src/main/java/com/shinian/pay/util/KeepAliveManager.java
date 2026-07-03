@@ -19,7 +19,6 @@ import androidx.work.WorkManager;
 import com.shinian.pay.service.DaemonService;
 import com.shinian.pay.service.DaemonWatchDog;
 import com.shinian.pay.service.KeepAliveWorker;
-import com.shinian.pay.service.PlayerMusicService;
 
 import java.util.concurrent.TimeUnit;
 
@@ -33,7 +32,6 @@ public class KeepAliveManager {
 
     public static void startAll(Context context) {
         startDaemonService(context);
-        startPlayerMusicService(context);
         startDaemonWatchDog(context);
         scheduleWorkManager(context);
     }
@@ -48,19 +46,6 @@ public class KeepAliveManager {
             }
         } catch (Exception e) {
             Log.e(TAG, "启动 DaemonService 失败", e);
-        }
-    }
-
-    public static void startPlayerMusicService(Context context) {
-        try {
-            Intent intent = new Intent(context, PlayerMusicService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent);
-            } else {
-                context.startService(intent);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "启动 PlayerMusicService 失败", e);
         }
     }
 

@@ -15,10 +15,6 @@ import com.shinian.pay.manager.AppConstants;
 
 /**前台Service，使用startForeground
  * 这个Service尽量要轻，不要占用过多的系统资源，否则
-
-
-/**前台Service，使用startForeground
- * 这个Service尽量要轻，不要占用过多的系统资源，否则
  * 系统在资源紧张时，照样会将其杀死
  *
  * Created by jianddongguo on 2017/7/7.
@@ -46,10 +42,6 @@ public class DaemonService extends Service {
             createNotificationChannel();
             Notification.Builder builder = createNotificationBuilder();
             startForeground(NOTICE_ID, builder.build());
-            // 如果觉得常驻通知栏体验不好
-            // 可以通过启动 CancelNoticeService，将通知移除，oom_adj 值不变
-            Intent intent = new Intent(this,CancelNoticeService.class);
-            startService(intent);
         }else{
             startForeground(NOTICE_ID,new Notification());
         }
@@ -112,8 +104,5 @@ public class DaemonService extends Service {
         }
         if(AppConstants.DEBUG)
             Log.d(TAG,"DaemonService---->onDestroy，前台 service 被杀死");
-        // 重启自己
-        Intent intent = new Intent(getApplicationContext(),DaemonService.class);
-        startService(intent);
     }
 }

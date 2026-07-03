@@ -111,7 +111,8 @@ public class PayNotificationListenerService extends NotificationListenerService 
                 try {
                     Thread.sleep(50 * 1000);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    Thread.currentThread().interrupt();
+                    break;
                 }
             }
         });
@@ -430,52 +431,58 @@ public class PayNotificationListenerService extends NotificationListenerService 
         
     /**
      * 延迟重试回调（消除重复代码）
+     * 注意：同步网络请求在后台线程执行，避免阻塞主线程导致 ANR
      */
     private void scheduleRetryCallback(final int type, final double price, final String priceStr) {
-        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+        if (mainHandler == null) {
+            mainHandler = new Handler(Looper.getMainLooper());
+        }
+        mainHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                try {
-                    String t = String.valueOf(new Date().getTime());
-                    String sign = md5(type + priceStr + t + key);
-                    String url = HttpUtil.buildPushUrl(host, type, priceStr, t, sign);
-                        
-                    String data = HttpUtil.getSync(url);
-                        
-                    // 解析响应
-                    JSONObject jsonObject = new JSONObject(data);
-                    int code = jsonObject.getInt("code");
-                    String message = jsonObject.getString("msg");
-                        
-                    if (code == 1 && "成功".equals(message)) {
-                        // 记录补回调日志
-                        logPushResult(type, priceStr, message, data, true);
+                new Thread(() -> {
+                    try {
+                        String t = String.valueOf(new Date().getTime());
+                        String sign = md5(type + priceStr + t + key);
+                        String url = HttpUtil.buildPushUrl(host, type, priceStr, t, sign);
                             
-                        new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        String data = HttpUtil.getSync(url);
+                            
+                        // 解析响应
+                        JSONObject jsonObject = new JSONObject(data);
+                        int code = jsonObject.getInt("code");
+                        String message = jsonObject.getString("msg");
+                            
+                        if (code == 1 && "成功".equals(message)) {
+                            // 记录补回调日志
+                            logPushResult(type, priceStr, message, data, true);
+                                
+                            mainHandler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(getApplicationContext(), 
+                                            "补通知回调成功：" + data, 
+                                            Toast.LENGTH_LONG).show();
+                                }
+                            });
+                        } else {
+                            Log.w(TAG, "appPush: 补回调失败 - code:" + code + ", msg:" + message);
+                        }
+                    } catch (Exception e) {
+                        String error = e.getMessage();
+                        Log.e(TAG, "appPush: 补回调异常 - " + error);
+                            
+                        final String finalError = error;
+                        mainHandler.post(new Runnable() {
                             @Override
                             public void run() {
-                                Toast.makeText(getApplicationContext(), 
-                                        "补通知回调成功：" + data, 
+                                Toast.makeText(getApplication(), 
+                                        "自动补单回调失败！联系作者反馈\n错误详情：" + finalError, 
                                         Toast.LENGTH_LONG).show();
                             }
                         });
-                    } else {
-                        Log.w(TAG, "appPush: 补回调失败 - code:" + code + ", msg:" + message);
                     }
-                } catch (Exception e) {
-                    String error = e.getMessage();
-                    Log.e(TAG, "appPush: 补回调异常 - " + error);
-                        
-                    final String finalError = error;
-                    new Handler(Looper.getMainLooper()).post(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(getApplication(), 
-                                    "自动补单回调失败！联系作者反馈\n错误详情：" + finalError, 
-                                    Toast.LENGTH_LONG).show();
-                        }
-                    });
-                }
+                }).start();
             }
         }, 1000); // 延迟 1 秒重试
     }

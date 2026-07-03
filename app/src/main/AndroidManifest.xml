@@ -36,14 +36,7 @@
     <!-- 前台服务数据同步权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
 
-    <!-- Account Sync 所需权限 -->
-    <uses-permission android:name="android.permission.READ_SYNC_SETTINGS"/>
-    <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS"/>
-    <uses-permission android:name="android.permission.AUTHENTICATE_ACCOUNTS"/>
-    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
-    <uses-permission android:name="android.permission.WRITE_SYNC_ADAPTER"/>
-
-    <!-- JobScheduler 所需权限 -->
+    <!-- 开机自启广播权限 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
     <!-- 声明相机硬件特性 -->
@@ -145,30 +138,6 @@
                 android:process=":daemon_service"
                 android:foregroundServiceType="dataSync"/>
 
-        <service
-                android:name=".service.CancelNoticeService"
-                android:enabled="true"
-                android:exported="true"
-                android:process=":service"
-                android:foregroundServiceType="dataSync"/>
-
-        <service
-                android:name=".service.PlayerMusicService"
-                android:enabled="true"
-                android:exported="true"
-                android:process=":music_service"/>
-
-        <service
-                android:name=".service.AliveJobService"
-                android:permission="android.permission.BIND_JOB_SERVICE"/>
-
-        <!-- Native 守护服务 -->
-        <service
-                android:name=".service.NativeDaemonService"
-                android:enabled="true"
-                android:exported="true"
-                android:process=":native_daemon"/>
-
         <!-- 守护看门狗 (双进程守护) -->
         <service
                 android:name=".service.DaemonWatchDog"
@@ -177,39 +146,15 @@
                 android:process=":watchdog"
                 android:foregroundServiceType="dataSync"/>
 
-        <!-- 同步适配器服务 -->
-        <service
-                android:name=".service.SyncAdapterService"
-                android:enabled="true"
-                android:exported="true"
-                android:process=":sync_adapter">
-            <intent-filter>
-                <action android:name="android.content.SyncAdapter"/>
-            </intent-filter>
-            <meta-data
-                    android:name="android.content.SyncAdapter"
-                    android:resource="@xml/syncadapter"/>
-        </service>
-
-        <!-- 账户认证器 -->
-        <service
-                android:name=".service.AccountAuthenticatorService"
+        <!-- 开机自启广播接收器 -->
+        <receiver
+                android:name=".receiver.BootReceiver"
                 android:exported="true">
             <intent-filter>
-                <action android:name="android.accounts.AccountAuthenticator"/>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
-            <meta-data
-                    android:name="android.accounts.AccountAuthenticator"
-                    android:resource="@xml/authenticator"/>
-        </service>
-
-        <!-- 虚拟 ContentProvider (用于 SyncAdapter) -->
-        <provider
-                android:name=".provider.SyncProvider"
-                android:authorities="com.shinian.pay.provider"
-                android:exported="false"
-                android:syncable="true"/>
-
+        </receiver>
 
     </application>
 

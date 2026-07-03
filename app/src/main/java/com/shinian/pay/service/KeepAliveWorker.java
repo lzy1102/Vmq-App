@@ -23,7 +23,6 @@ public class KeepAliveWorker extends Worker {
         Log.d(TAG, "WorkManager 定时检查：确保服务运行");
 
         ensureDaemonServiceRunning();
-        ensurePlayerMusicServiceRunning();
 
         return Result.success();
     }
@@ -31,16 +30,6 @@ public class KeepAliveWorker extends Worker {
     private void ensureDaemonServiceRunning() {
         Context ctx = getApplicationContext();
         Intent intent = new Intent(ctx, DaemonService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            ctx.startForegroundService(intent);
-        } else {
-            ctx.startService(intent);
-        }
-    }
-
-    private void ensurePlayerMusicServiceRunning() {
-        Context ctx = getApplicationContext();
-        Intent intent = new Intent(ctx, PlayerMusicService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             ctx.startForegroundService(intent);
         } else {

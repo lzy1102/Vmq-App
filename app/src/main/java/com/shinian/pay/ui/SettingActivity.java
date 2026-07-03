@@ -16,8 +16,6 @@ import com.shinian.pay.R;
 import com.shinian.pay.manager.AppConstants;
 import com.shinian.pay.receiver.ScreenReceiverUtil;
 import com.shinian.pay.service.DaemonService;
-import com.shinian.pay.service.NativeDaemonService;
-import com.shinian.pay.service.PlayerMusicService;
 import com.shinian.pay.util.AppUtil;
 import com.shinian.pay.util.ConfigManager;
 import com.shinian.pay.util.KeepAliveManager;
@@ -118,51 +116,9 @@ public class SettingActivity extends AppCompatActivity {
         }
     }
 
-    private void stopPlayMusicService() {
-        Intent intent = new Intent(this, PlayerMusicService.class);
-        stopService(intent);
-    }
-
-    private void startPlayMusicService() {
-        Intent intent = new Intent(this, PlayerMusicService.class);
-        startService(intent);
-    }
-
     private void startDaemonService() {
         Intent intent = new Intent(this, DaemonService.class);
         startService(intent);
-    }
-
-    /**
-     * 启动 Native 守护服务
-     * 注意：需确保系统允许执行 shell 命令
-     */
-    private void startNativeDaemonService() {
-        try {
-            Intent intent = new Intent(this, NativeDaemonService.class);
-            startService(intent);
-            if (AppConstants.DEBUG) {
-                Log.d(TAG, "Native 守护服务已启动");
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "启动 Native 守护服务失败", e);
-        }
-    }
-    
-    /**
-     * 启动 Account Sync 保活 (系统级白名单)
-     * 效果：系统每 15 分钟自动唤醒应用一次，即使被杀死也能复活
-     */
-    private void startAccountSync() {
-        try {
-            com.shinian.pay.util.SyncManager syncManager = com.shinian.pay.util.SyncManager.getInstance(this);
-            syncManager.startPeriodicSync();
-            if (AppConstants.DEBUG) {
-                Log.i(TAG, "Account Sync 保活已启动，同步间隔：15 分钟");
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "启动 Account Sync 失败", e);
-        }
     }
 
     // 停止 service
@@ -248,9 +204,6 @@ public class SettingActivity extends AppCompatActivity {
         mScreenListener.setScreenReceiverListener(mScreenListenerer);
 
         KeepAliveManager.startAll(this);
-
-        startNativeDaemonService();
-        startAccountSync();
 
         KeepAliveManager.showBatteryOptimizationDialog(this);
 

@@ -26,6 +26,8 @@ public class DaemonWatchDog extends Service {
     private static final String ACTION_CHECK_ALIVE = "com.shinian.pay.CHECK_ALIVE";
 
     private BroadcastReceiver aliveReceiver;
+    private volatile boolean watchLoopRunning = false;
+    private Thread watchThread;
 
     @Override
     public void onCreate() {
@@ -42,16 +44,23 @@ public class DaemonWatchDog extends Service {
     }
 
     private void startWatchLoop() {
-        new Thread(() -> {
-            while (true) {
+        if (watchLoopRunning) {
+            Log.d(TAG, "WatchLoop 已在运行，跳过重复创建");
+            return;
+        }
+        watchLoopRunning = true;
+        watchThread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(3 * 60 * 1000);
                     ensureDaemonServiceAlive();
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     break;
                 }
             }
-        }).start();
+        }, "DaemonWatchDog-WatchLoop");
+        watchThread.start();
     }
 
     private void ensureDaemonServiceAlive() {
@@ -115,6 +124,11 @@ public class DaemonWatchDog extends Service {
         super.onDestroy();
         if (aliveReceiver != null) {
             unregisterReceiver(aliveReceiver);
+        }
+        // 停止看门狗线程，防止线程泄漏和内存泄漏
+        watchLoopRunning = false;
+        if (watchThread != null) {
+            watchThread.interrupt();
         }
         try {
             Intent intent = new Intent(this, DaemonWatchDog.class);
