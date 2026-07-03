@@ -1,13 +1,15 @@
 package com.shinian.pay.receiver;
 
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.shinian.pay.service.ForeService;
-import com.shinian.pay.service.DaemonWatchDog;
 import com.shinian.pay.util.KeepAliveManager;
 
 /**
@@ -32,7 +34,6 @@ public class BootReceiver extends BroadcastReceiver {
 
     private void startAllServices(Context context) {
         try {
-            // 1. 启动 ForeService（主前台服务，通知栏常驻）
             Intent foreIntent = new Intent(context, ForeService.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(foreIntent);
@@ -44,9 +45,40 @@ public class BootReceiver extends BroadcastReceiver {
             Log.e(TAG, "启动 ForeService 失败", e);
         }
 
-        // 2. 启动守护看门狗（DaemonWatchDog + DaemonService + WorkManager）
         KeepAliveManager.startAll(context);
 
+        if (!isNotificationListenerEnabled(context)) {
+            Log.w(TAG, "通知监听权限未开启，启动 MainActivity 引导用户");
+            try {
+                Intent mainIntent = new Intent(context, com.shinian.pay.ui.MainActivity.class);
+                mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(mainIntent);
+            } catch (Exception e) {
+                Log.e(TAG, "启动 MainActivity 失败", e);
+            }
+        } else {
+            Log.d(TAG, "通知监听权限已开启");
+        }
+
         Log.i(TAG, "所有保活服务已启动完成");
+    }
+
+    private boolean isNotificationListenerEnabled(Context context) {
+        String pkgName = context.getPackageName();
+        String flat = Settings.Secure.getString(
+                context.getContentResolver(),
+                "enabled_notification_listeners"
+        );
+        if (TextUtils.isEmpty(flat)) {
+            return false;
+        }
+        String[] names = flat.split(":");
+        for (String name : names) {
+            ComponentName cn = ComponentName.unflattenFromString(name);
+            if (cn != null && TextUtils.equals(pkgName, cn.getPackageName())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
