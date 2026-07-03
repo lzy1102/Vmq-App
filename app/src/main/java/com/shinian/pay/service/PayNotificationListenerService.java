@@ -175,15 +175,25 @@ public class PayNotificationListenerService extends NotificationListenerService 
      * @return 提取到的金额字符串，如果未找到则返回 null
      */
     public static String getMoney(String content) {
-        // 空值检查
         if (content == null || content.isEmpty()) return null;
+        
         int shoukuanIndex = content.indexOf("收款");
-        if (shoukuanIndex < 0) return null;
+        int fukuanIndex = content.indexOf("付款");
+        
+        int startIndex = -1;
+        if (shoukuanIndex >= 0 && fukuanIndex >= 0) {
+            startIndex = Math.min(shoukuanIndex, fukuanIndex);
+        } else if (shoukuanIndex >= 0) {
+            startIndex = shoukuanIndex;
+        } else if (fukuanIndex >= 0) {
+            startIndex = fukuanIndex;
+        } else {
+            return null;
+        }
 
-        String afterShoukuan = content.substring(shoukuanIndex);
+        String afterKeyword = content.substring(startIndex);
         List<String> validAmounts = new ArrayList<>();
-        // 创建正则表达式模式
-        java.util.regex.Matcher matcher = MONEY_PATTERN.matcher(afterShoukuan);
+        java.util.regex.Matcher matcher = MONEY_PATTERN.matcher(afterKeyword);
 
         while (matcher.find()) {
             String matched = matcher.group();
@@ -534,7 +544,7 @@ public class PayNotificationListenerService extends NotificationListenerService 
         if (!isPayTitle) return;
 
         // 忽略支付消息
-        if (!content.contains("收款") || content.contains("已支付")) return;
+        if ((!content.contains("收款") && !content.contains("付款")) || content.contains("已支付")) return;
 
 
         // 尝试获取金额（重试一次避免掉单）
