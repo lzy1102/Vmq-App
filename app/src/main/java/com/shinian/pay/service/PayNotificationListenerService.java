@@ -156,8 +156,8 @@ public class PayNotificationListenerService extends NotificationListenerService 
             return;
         }
         
-        String title = extras.getString(NotificationCompat.EXTRA_TITLE, "");
-        String content = extras.getString(NotificationCompat.EXTRA_TEXT, "");
+        String title = toText(extras.getCharSequence(NotificationCompat.EXTRA_TITLE));
+        String content = extractContent(extras);
         Log.d(TAG, "包名: " + pkg);
         // 根据包名分发处理逻辑
         if (PACKAGE_WECHAT.equals(pkg) || PACKAGE_WECHAT_WORK.equals(pkg)) {
@@ -165,10 +165,58 @@ public class PayNotificationListenerService extends NotificationListenerService 
         } else if (PACKAGE_ALIPAY.equals(pkg)) {
             handleAlipayNotification(title, content);
         } else if (PACKAGE_SELF.equals(pkg)) {
-            handleSelfTestNotification(content);
+            if (handleSelfTestNotification(content)) {
+                cancelNotification(sbn.getKey());
+            }
         }
     }
     
+    private static String toText(CharSequence cs) {
+        return cs == null ? "" : cs.toString();
+    }
+
+    private static boolean containsPayKeyword(String text) {
+        if (text == null) return false;
+        return text.contains("收款") || text.contains("付款") || text.contains("到账");
+    }
+
+    /**
+     * 合并通知中所有可能的文本字段，兼容 MessagingStyle/InboxStyle 等
+     */
+    private static String extractContent(Bundle extras) {
+        StringBuilder sb = new StringBuilder();
+        appendText(sb, extras.getCharSequence(NotificationCompat.EXTRA_TEXT));
+        appendText(sb, extras.getCharSequence(NotificationCompat.EXTRA_BIG_TEXT));
+        appendText(sb, extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT));
+        appendText(sb, extras.getCharSequence(NotificationCompat.EXTRA_SUMMARY_TEXT));
+
+        Parcelable[] messages = extras.getParcelableArray(NotificationCompat.EXTRA_MESSAGES);
+        if (messages != null) {
+            for (Parcelable p : messages) {
+                if (p instanceof Bundle) {
+                    Bundle msg = (Bundle) p;
+                    appendText(sb, msg.getCharSequence("text"));
+                }
+            }
+        }
+
+        CharSequence[] lines = extras.getCharSequenceArray(NotificationCompat.EXTRA_TEXT_LINES);
+        if (lines != null) {
+            for (CharSequence line : lines) {
+                appendText(sb, line);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static void appendText(StringBuilder sb, CharSequence cs) {
+        if (cs == null) return;
+        String text = cs.toString();
+        if (text.isEmpty() || sb.indexOf(text) >= 0) return;
+        if (sb.length() > 0) sb.append('\n');
+        sb.append(text);
+    }
+
     /**
      * 从文本内容中提取金额数字
      * @param content 包含金额的文本内容
@@ -221,13 +269,19 @@ public class PayNotificationListenerService extends NotificationListenerService 
         if (TextUtils.isEmpty(title) && TextUtils.isEmpty(content)) {
             return;
         }
+
+        if (containsPayKeyword(title) || containsPayKeyword(content)) {
+            sendMonitorLogs(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())
+                    + "\r\r\r\r" + "检测到支付宝通知：\n标题：" + title + "\n内容：" + content);
+        }
         
         String money = null;
         String platform = "";
         int platformType = 2;
         
         // 判断是普通收款还是店员通收款（添加括号明确优先级）
-        boolean isNormalPay = (title.contains("成功收款") && content.contains("已转入余额")) 
+        boolean isNormalPay = title.contains("成功收款")
+                             || content.contains("成功收款")
                              || content.contains("通过扫码向你付款");
         boolean isStaffPay = title.contains("店员通") || content.contains("支付宝成功收款");
         
@@ -277,13 +331,15 @@ public class PayNotificationListenerService extends NotificationListenerService 
     /**
      * 处理自检测试通知
      */
-    private void handleSelfTestNotification(String content) {
+    private boolean handleSelfTestNotification(String content) {
         if ("测试推送通知，如果程序正常，则会提示监听权限正常".equals(content)) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 sendMonitorLogs(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) 
                                + "\r\r\r\r" + "测试收款监听权限正常！");
             }
+            return true;
         }
+        return false;
     }
     
     /**
